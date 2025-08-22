@@ -80,3 +80,8 @@ body {
 #nextBtn:active {
   background: #388e3c;
 }
+
+.selected-touch {
+  outline: 3px solid #1976d2;
+  box-shadow: 0 0 0 4px #90caf9;
+}
