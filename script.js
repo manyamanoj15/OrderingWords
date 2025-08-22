@@ -76,18 +76,23 @@ function renderWords(words) {
       document.querySelectorAll('.blank').forEach(b => b.classList.remove('highlight-drop'));
       const touch = e.changedTouches[0];
       const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
-      if (dropIndex !== null && !placedWords[dropIndex]) {
+      const firstEmpty = getFirstEmptyBlankIndex();
+      if (dropIndex === firstEmpty && !placedWords[dropIndex]) {
+        if (!canPlaceWord(word, dropIndex)) {
+          showPopup("No no no, try again");
+          touchSelectedWord = null;
+          touchSelectedFrom = null;
+          return;
+        }
         let newPlaced = placedWords.slice();
         newPlaced[dropIndex] = word;
         newPlaced = newPlaced.filter(Boolean);
-        if (!isAlphabetical(newPlaced)) {
-          showPopup("No no no, try again");
-          return;
-        }
         placedWords = newPlaced;
         renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
         renderBlanks();
         showNextBtnIfReady();
+      } else {
+        showPopup("No no no, try again");
       }
       touchSelectedWord = null;
       touchSelectedFrom = null;
@@ -169,26 +174,29 @@ function renderBlanks() {
         document.querySelectorAll('.blank').forEach(b => b.classList.remove('highlight-drop'));
         const touch = e.changedTouches[0];
         const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
-        if (dropIndex !== null && dropIndex !== i && !placedWords[dropIndex]) {
-          // Move between blanks
+        const firstEmpty = getFirstEmptyBlankIndex();
+        if (dropIndex === firstEmpty && dropIndex !== i && !placedWords[dropIndex]) {
+          if (!canPlaceWord(placedWords[i], dropIndex)) {
+            showPopup("No no no, try again");
+            touchSelectedWord = null;
+            touchSelectedFrom = null;
+            return;
+          }
           let newPlaced = placedWords.slice();
           newPlaced.splice(i, 1);
           newPlaced[dropIndex] = placedWords[i];
           newPlaced = newPlaced.filter(Boolean);
-          if (!isAlphabetical(newPlaced)) {
-            showPopup("No no no, try again");
-            return;
-          }
           placedWords = newPlaced;
           renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
           renderBlanks();
           showNextBtnIfReady();
         } else if (isTouchInLeftPane(touch.clientX, touch.clientY)) {
-          // Move back to left pane
           placedWords.splice(i, 1);
           renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
           renderBlanks();
           document.getElementById("nextBtn").style.display = "none";
+        } else {
+          showPopup("No no no, try again");
         }
         touchSelectedWord = null;
         touchSelectedFrom = null;
@@ -200,7 +208,15 @@ function renderBlanks() {
       if (!placedWords[i] && draggedWord) e.preventDefault();
     });
     blank.addEventListener("drop", () => {
-      if (placedWords[i] || !draggedWord) return;
+      const firstEmpty = getFirstEmptyBlankIndex();
+      if (placedWords[i] || !draggedWord || i !== firstEmpty) {
+        showPopup("No no no, try again");
+        return;
+      }
+      if (!canPlaceWord(draggedWord, i)) {
+        showPopup("No no no, try again");
+        return;
+      }
       let newPlaced = placedWords.slice();
       if (draggedFrom === 'left') {
         newPlaced[i] = draggedWord;
@@ -209,10 +225,6 @@ function renderBlanks() {
         newPlaced.splice(i, 0, draggedWord);
       }
       newPlaced = newPlaced.filter(Boolean);
-      if (!isAlphabetical(newPlaced)) {
-        showPopup("No no no, try again");
-        return;
-      }
       placedWords = newPlaced;
       renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
       renderBlanks();
@@ -307,6 +319,19 @@ function showPopup(message) {
   setTimeout(() => {
     popup.style.display = 'none';
   }, 2000);
+}
+
+function canPlaceWord(word, blankIndex) {
+  // Only allow the correct word for this blank
+  const sorted = wordSets[currentSet].slice().sort();
+  return word === sorted[blankIndex];
+}
+
+function getFirstEmptyBlankIndex() {
+  for (let i = 0; i < 3; i++) {
+    if (!placedWords[i]) return i;
+  }
+  return null;
 }
 
 // Initial render
