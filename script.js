@@ -1,3 +1,4 @@
+// Alphabetical Ordering Game - Cleaned and Robust Version
 const wordSets = [
   ["cat", "bat", "rat"],
   ["sun", "fun", "run"],
@@ -11,6 +12,7 @@ let draggedFrom = null; // 'left' or blank index
 let placedWords = [];
 let touchSelectedWord = null;
 let touchSelectedFrom = null;
+let touchGhost = null;
 
 function renderWords(words) {
   const wordsDiv = document.getElementById("words");
@@ -20,41 +22,82 @@ function renderWords(words) {
     div.className = "word";
     div.textContent = word;
     div.draggable = true;
-    div.addEventListener("dragstart", (e) => {
+    // Desktop drag
+    div.addEventListener("dragstart", () => {
       draggedWord = word;
       draggedFrom = 'left';
       div.classList.add("dragging");
     });
-    div.addEventListener("dragend", (e) => {
+    div.addEventListener("dragend", () => {
       draggedWord = null;
       draggedFrom = null;
       div.classList.remove("dragging");
     });
-    // Touch support: tap to select
+    // Mobile touch drag
     div.addEventListener("touchstart", (e) => {
       e.preventDefault();
       touchSelectedWord = word;
       touchSelectedFrom = 'left';
-      highlightSelectedWord(div);
+      div.classList.add("dragging");
+      // Create ghost
+      touchGhost = div.cloneNode(true);
+      touchGhost.style.position = 'fixed';
+      touchGhost.style.pointerEvents = 'none';
+      touchGhost.style.opacity = '0.8';
+      touchGhost.style.zIndex = '1002';
+      touchGhost.classList.add('dragging');
+      document.body.appendChild(touchGhost);
+    });
+    div.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (touchGhost) {
+        touchGhost.style.left = (touch.clientX - 80) + 'px';
+        touchGhost.style.top = (touch.clientY - 40) + 'px';
+        touchGhost.style.width = 'auto';
+        touchGhost.style.maxWidth = '200px';
+        touchGhost.style.height = 'auto';
+        touchGhost.style.fontSize = '2rem';
+      }
+      // Highlight blank
+      const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
+      document.querySelectorAll('.blank').forEach((b, idx) => {
+        if (dropIndex === idx) b.classList.add('highlight-drop');
+        else b.classList.remove('highlight-drop');
+      });
+    });
+    div.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      div.classList.remove("dragging");
+      if (touchGhost) {
+        document.body.removeChild(touchGhost);
+        touchGhost = null;
+      }
+      document.querySelectorAll('.blank').forEach(b => b.classList.remove('highlight-drop'));
+      const touch = e.changedTouches[0];
+      const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
+      if (dropIndex !== null && !placedWords[dropIndex]) {
+        let newPlaced = placedWords.slice();
+        newPlaced[dropIndex] = word;
+        newPlaced = newPlaced.filter(Boolean);
+        if (!isAlphabetical(newPlaced)) {
+          showPopup("No no no, try again");
+          return;
+        }
+        placedWords = newPlaced;
+        renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
+        renderBlanks();
+        showNextBtnIfReady();
+      }
+      touchSelectedWord = null;
+      touchSelectedFrom = null;
     });
     wordsDiv.appendChild(div);
   });
-  // Allow dropping words back to left pane
-  wordsDiv.addEventListener("dragover", (e) => {
-    if (draggedWord && draggedFrom !== 'left') e.preventDefault();
-  });
-  wordsDiv.addEventListener("drop", (e) => {
-    if (draggedWord && draggedFrom !== 'left') {
-      // Remove from placedWords
-      placedWords.splice(draggedFrom, 1);
-      renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
-      renderBlanks();
-      document.getElementById("nextBtn").style.display = "none";
-    }
-  });
-  // Touch support: tap left pane to move selected word back
+  // Touch: tap left pane to move selected word back
   wordsDiv.addEventListener("touchstart", (e) => {
     if (!touchSelectedWord || touchSelectedFrom === 'left') return;
+    if (e.target !== wordsDiv) return;
     placedWords.splice(touchSelectedFrom, 1);
     clearTouchSelection();
     renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
@@ -75,105 +118,144 @@ function renderBlanks() {
       blank.textContent = placedWords[i];
       blank.classList.add("filled");
       blank.draggable = true;
-      blank.addEventListener("dragstart", (e) => {
+      blank.addEventListener("dragstart", () => {
         draggedWord = placedWords[i];
         draggedFrom = i;
         blank.classList.add("dragging");
       });
-      blank.addEventListener("dragend", (e) => {
+      blank.addEventListener("dragend", () => {
         draggedWord = null;
         draggedFrom = null;
         blank.classList.remove("dragging");
       });
-      // Touch support: tap to select
+      // Mobile touch drag for blanks
       blank.addEventListener("touchstart", (e) => {
         e.preventDefault();
         touchSelectedWord = placedWords[i];
         touchSelectedFrom = i;
-        highlightSelectedWord(blank);
+        blank.classList.add("dragging");
+        touchGhost = blank.cloneNode(true);
+        touchGhost.style.position = 'fixed';
+        touchGhost.style.pointerEvents = 'none';
+        touchGhost.style.opacity = '0.8';
+        touchGhost.style.zIndex = '1002';
+        touchGhost.classList.add('dragging');
+        document.body.appendChild(touchGhost);
+      });
+      blank.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        if (touchGhost) {
+          touchGhost.style.left = (touch.clientX - 80) + 'px';
+          touchGhost.style.top = (touch.clientY - 40) + 'px';
+          touchGhost.style.width = 'auto';
+          touchGhost.style.maxWidth = '200px';
+          touchGhost.style.height = 'auto';
+          touchGhost.style.fontSize = '2rem';
+        }
+        const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
+        document.querySelectorAll('.blank').forEach((b, idx) => {
+          if (dropIndex === idx) b.classList.add('highlight-drop');
+          else b.classList.remove('highlight-drop');
+        });
+      });
+      blank.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        blank.classList.remove("dragging");
+        if (touchGhost) {
+          document.body.removeChild(touchGhost);
+          touchGhost = null;
+        }
+        document.querySelectorAll('.blank').forEach(b => b.classList.remove('highlight-drop'));
+        const touch = e.changedTouches[0];
+        const dropIndex = getBlankIndexAtPoint(touch.clientX, touch.clientY);
+        if (dropIndex !== null && dropIndex !== i && !placedWords[dropIndex]) {
+          // Move between blanks
+          let newPlaced = placedWords.slice();
+          newPlaced.splice(i, 1);
+          newPlaced[dropIndex] = placedWords[i];
+          newPlaced = newPlaced.filter(Boolean);
+          if (!isAlphabetical(newPlaced)) {
+            showPopup("No no no, try again");
+            return;
+          }
+          placedWords = newPlaced;
+          renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
+          renderBlanks();
+          showNextBtnIfReady();
+        } else if (isTouchInLeftPane(touch.clientX, touch.clientY)) {
+          // Move back to left pane
+          placedWords.splice(i, 1);
+          renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
+          renderBlanks();
+          document.getElementById("nextBtn").style.display = "none";
+        }
+        touchSelectedWord = null;
+        touchSelectedFrom = null;
       });
     } else {
       blank.textContent = "";
-      // Touch support: tap to place
-      blank.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        if (!touchSelectedWord) return;
-        // Determine new placedWords
-        let newPlaced = placedWords.slice();
-        if (touchSelectedFrom === 'left') {
-          newPlaced[i] = touchSelectedWord;
-        } else {
-          // Moving between blanks
-          newPlaced.splice(touchSelectedFrom, 1);
-          newPlaced.splice(i, 0, touchSelectedWord);
-        }
-        // Remove undefined
-        newPlaced = newPlaced.filter(Boolean);
-        // Check if the word is in the correct alphabetical position
-        let correctOrder = wordSets[currentSet].slice().sort();
-        let isCorrect = true;
-        for (let j = 0; j < newPlaced.length; j++) {
-          if (newPlaced[j] !== correctOrder[j]) {
-            isCorrect = false;
-            break;
-          }
-        }
-        if (!isCorrect) {
-          showPopup("No no no, try again");
-          clearTouchSelection();
-          return;
-        }
-        placedWords = newPlaced;
-        clearTouchSelection();
-        renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
-        renderBlanks();
-        if (placedWords.length === 3) {
-          document.getElementById("nextBtn").style.display = "flex";
-        } else {
-          document.getElementById("nextBtn").style.display = "none";
-        }
-      });
     }
     blank.addEventListener("dragover", (e) => {
-      // Allow drop if blank is empty and either from left or another blank
       if (!placedWords[i] && draggedWord) e.preventDefault();
     });
-    blank.addEventListener("drop", (e) => {
+    blank.addEventListener("drop", () => {
       if (placedWords[i] || !draggedWord) return;
-      // Determine new placedWords
       let newPlaced = placedWords.slice();
       if (draggedFrom === 'left') {
         newPlaced[i] = draggedWord;
       } else {
-        // Moving between blanks
         newPlaced.splice(draggedFrom, 1);
         newPlaced.splice(i, 0, draggedWord);
       }
-      // Remove undefined
       newPlaced = newPlaced.filter(Boolean);
-      // Check if the word is in the correct alphabetical position
-      let correctOrder = wordSets[currentSet].slice().sort();
-      let isCorrect = true;
-      for (let j = 0; j < newPlaced.length; j++) {
-        if (newPlaced[j] !== correctOrder[j]) {
-          isCorrect = false;
-          break;
-        }
-      }
-      if (!isCorrect) {
+      if (!isAlphabetical(newPlaced)) {
         showPopup("No no no, try again");
         return;
       }
       placedWords = newPlaced;
       renderWords(wordSets[currentSet].filter(w => !placedWords.includes(w)));
       renderBlanks();
-      if (placedWords.length === 3) {
-        document.getElementById("nextBtn").style.display = "flex";
-      } else {
-        document.getElementById("nextBtn").style.display = "none";
-      }
+      showNextBtnIfReady();
     });
     blanksDiv.appendChild(blank);
+  }
+}
+
+function isAlphabetical(arr) {
+  let sorted = [...arr].sort();
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] !== sorted[i]) return false;
+  }
+  return true;
+}
+
+function getBlankIndexAtPoint(x, y) {
+  const blanks = document.querySelectorAll('.blank');
+  for (let i = 0; i < blanks.length; i++) {
+    const rect = blanks[i].getBoundingClientRect();
+    if (
+      x >= rect.left - 40 && x <= rect.right + 40 &&
+      y >= rect.top - 40 && y <= rect.bottom + 40
+    ) {
+      return i;
+    }
+  }
+  return null;
+}
+
+function isTouchInLeftPane(x, y) {
+  const leftPane = document.querySelector('.left');
+  if (!leftPane) return false;
+  const rect = leftPane.getBoundingClientRect();
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
+function showNextBtnIfReady() {
+  if (placedWords.length === 3) {
+    document.getElementById("nextBtn").style.display = "flex";
+  } else {
+    document.getElementById("nextBtn").style.display = "none";
   }
 }
 
@@ -187,10 +269,6 @@ function nextSet() {
 
 document.getElementById("nextBtn").addEventListener("click", nextSet);
 
-// Initial render
-
-// Popup function
-// Touch selection helpers
 function highlightSelectedWord(element) {
   document.querySelectorAll('.word, .blank').forEach(el => {
     el.classList.remove('selected-touch');
@@ -205,6 +283,7 @@ function clearTouchSelection() {
     el.classList.remove('selected-touch');
   });
 }
+
 function showPopup(message) {
   let popup = document.getElementById('popup-message');
   if (!popup) {
@@ -230,5 +309,6 @@ function showPopup(message) {
   }, 2000);
 }
 
+// Initial render
 renderWords(wordSets[currentSet]);
 renderBlanks();
